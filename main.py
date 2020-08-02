@@ -34,7 +34,9 @@ def help(message):
         f'{GREET}.\n'
         f'{ABOUT}.\n'
         '\n'
-        f'{COMMANDS}'
+        f'{COMMANDS}\n'
+        f'<a href="https://github.com/RedForester/rf_keeper_telegram">Bot source code</a>',
+        parse_mode='HTML'
     )
 
 

@@ -5,7 +5,7 @@
 ## Todos
 
 - [ ] persistence to users context
-- [ ] production deploy
+- [x] production deploy
 
 ## Development
 
