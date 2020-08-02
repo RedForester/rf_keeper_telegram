@@ -18,7 +18,7 @@ bot = telebot.TeleBot(os.getenv('RF_KEEPER_TOKEN'))
 
 
 GREET = 'Hi! I am RedForester Keeper bot'
-ABOUT = 'I will save your messages as nodes to the special branch on your map'
+ABOUT = 'I will save your messages as nodes to a specific branch on your map'
 COMMANDS = (
     'Available commands are:\n'
     '/start\n'
@@ -45,21 +45,21 @@ def start(message):
     chat_id, ctx = get_or_create_context(message)
 
     if Guards.is_authorized(ctx):
-        return bot.reply_to(message, 'We already started, no need for that. To logout from your account type /stop')
+        return bot.reply_to(message, 'We\'ve already started. To logout from your account type /stop')
 
     msg = bot.reply_to(
         message,
         f'{GREET}.\n'
         f'{ABOUT}.\n'
         '\n'
-        'Let\'s start, type your username (email) from RedForester account or /cancel:'
+        'Let\'s start, type your username (email) from your RedForester account or /cancel:'
     )
     bot.register_next_step_handler(msg, start_get_username)
 
 
 def start_get_username(message):
     if Guards.is_cancel(message) or Guards.is_command(message):
-        return bot.reply_to(message, 'Action canceled. Type /start to repeat')
+        return bot.reply_to(message, 'Action was canceled. Type /start to repeat')
 
     chat_id, ctx = get_or_create_context(message)
     ctx.username = message.text
@@ -73,7 +73,7 @@ def start_get_username(message):
 
 def start_get_password(message):
     if Guards.is_cancel(message) or Guards.is_command(message):
-        return bot.reply_to(message, 'Action canceled. Type /start to repeat')
+        return bot.reply_to(message, 'Action was canceled. Type /start to repeat')
 
     chat_id, ctx = get_or_create_context(message)
 
@@ -87,7 +87,7 @@ def start_get_password(message):
         msg = bot.send_message(
             chat_id,
             f'Hi, {rf_user.surname} {rf_user.name}!\n'
-            f'You login and password is correct!\n'
+            f'Your login and password is correct!\n'
             f'\n'
             f'Now, paste URL to the destination node:\n'
         )
@@ -121,14 +121,14 @@ def setup_init(message):
         message,
         f'{status_text}\n'
         '\n'
-        'Please paste link to the new destination node (or type /cancel):'
+        'Please paste link to the new destination node or type /cancel:'
     )
     bot.register_next_step_handler(msg, setup_complete)
 
 
 def setup_complete(message):
     if Guards.is_cancel(message) or Guards.is_command(message):
-        return bot.reply_to(message, 'Action canceled. Type /setup to repeat')
+        return bot.reply_to(message, 'Action was canceled. Type /setup to repeat')
 
     chat_id, ctx = get_or_create_context(message)
 
@@ -141,7 +141,7 @@ def setup_complete(message):
     ctx.target.node_id = node_id
     ctx.target.map_id = map_id
 
-    bot.send_message(chat_id, 'Setup is completed, send me messages and I will save them to RedForester')
+    bot.send_message(chat_id, 'Setup is complete, send me messages and I will save them to RedForester')
 
 
 @bot.message_handler(commands=['stop'])
@@ -174,7 +174,7 @@ def catch_all(message):
         rf_node = execute(create_new_node(ctx, message.text))
         url = link_to_node(rf_node.map_id, rf_node.id)
 
-        bot.reply_to(message, f'Saved to {url}')  # todo html link
+        bot.reply_to(message, f'<a href="{url}">Saved to RedForester</a>', parse_mode='HTML')
 
     except Exception as e:
         logger.exception(e)
@@ -183,8 +183,9 @@ def catch_all(message):
 
         bot.reply_to(
             message,
-            'Something went wrong.. Please check if you have access to destination node and try again\n'
-            f'Destination node is {target_url}'
+            'Something went wrong. Please check if you have access to the destination node and try again\n'
+            f'<a href="{target_url}">Destination node</a>',
+            parse_mode='HTML'
         )
 
 
