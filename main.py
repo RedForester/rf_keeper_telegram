@@ -2,6 +2,8 @@ import logging
 import os
 
 import telebot
+from telebot import apihelper
+
 from guards import Guards
 from rf_tasks import create_new_node, login_to_rf, execute
 from user_context import get_or_create_context, del_context, TargetNode
@@ -15,6 +17,13 @@ logger.setLevel(logging.INFO)
 logger.info('RedForester Keeper bot is started!')
 
 bot = telebot.TeleBot(os.getenv('RF_KEEPER_TOKEN'))
+
+apihelper.ENABLE_MIDDLEWARE = True
+
+
+@bot.middleware_handler(update_types=['message'])
+def log_message(bot_instance, message):
+    logger.info(f"Incoming message from chat: {message.chat.id}")
 
 
 GREET = 'Hi! I am RedForester Keeper bot'
