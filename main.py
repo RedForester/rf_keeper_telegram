@@ -191,4 +191,4 @@ def catch_all(message):
 
 if __name__ == '__main__':
     logger.info('Polling started')
-    bot.polling()
+    bot.infinity_polling()
