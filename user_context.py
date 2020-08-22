@@ -1,10 +1,8 @@
-import logging
 import os
 
 from peewee import Model, CharField, BooleanField, ForeignKeyField, DatabaseProxy, PostgresqlDatabase
 
-logger = logging.getLogger('bot')
-
+from logger import logger
 
 db = DatabaseProxy()
 

@@ -1,19 +1,15 @@
-import logging
 import os
 
 import telebot
 from telebot import apihelper
 
+from logger import logger
 from guards import Guards
 from rf_tasks import create_new_node, login_to_rf, execute
 from user_context import init_db, get_or_create_context, del_context, TargetNode
 from utils import link_to_node, parse_node_link
 
 
-logging.basicConfig(level=logging.WARNING, format='%(asctime)s %(name)s %(levelname)s: %(message)s')
-
-logger = logging.getLogger('bot')
-logger.setLevel(logging.INFO)
 logger.info('RedForester Keeper bot is started!')
 
 bot = telebot.TeleBot(os.getenv('RF_KEEPER_TOKEN'))
@@ -204,5 +200,5 @@ if __name__ == '__main__':
     init_db()
     logger.info("Database initialized")
 
-    logger.info('Polling started')
+    logger.info('Polling is started')
     bot.infinity_polling()
