@@ -88,6 +88,10 @@ def start_get_password(message):
     try:
         rf_user = execute(login_to_rf(ctx.username, password))
 
+        # fixme
+        #  Yes, this is extremely bad to store unhashed password, but I have no choice for now.
+        #  If you really concern - self host this bot.
+        #  Meanwhile I am trying to create better solution.
         ctx.password = password
         ctx.is_authorized = True
         ctx.save()
