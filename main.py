@@ -6,13 +6,13 @@ from telebot import apihelper
 
 from guards import Guards
 from rf_tasks import create_new_node, login_to_rf, execute
-from user_context import get_or_create_context, del_context, TargetNode
+from user_context import init_db, get_or_create_context, del_context, TargetNode
 from utils import link_to_node, parse_node_link
 
 
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s %(name)s %(levelname)s: %(message)s')
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('bot')
 logger.setLevel(logging.INFO)
 logger.info('RedForester Keeper bot is started!')
 
@@ -72,6 +72,7 @@ def start_get_username(message):
 
     chat_id, ctx = get_or_create_context(message)
     ctx.username = message.text
+    ctx.save()
 
     msg = bot.send_message(
         chat_id,
@@ -86,12 +87,14 @@ def start_get_password(message):
 
     chat_id, ctx = get_or_create_context(message)
 
-    ctx.password = message.text
+    password = message.text
 
     try:
-        rf_user = execute(login_to_rf(ctx.username, ctx.password))
+        rf_user = execute(login_to_rf(ctx.username, password))
 
+        ctx.password = password
         ctx.is_authorized = True
+        ctx.save()
 
         msg = bot.send_message(
             chat_id,
@@ -146,9 +149,8 @@ def setup_complete(message):
     if not map_id or not node_id:
         return bot.send_message(chat_id, 'Node link is incorrect, please try again with /setup command')
 
-    ctx.target = TargetNode()
-    ctx.target.node_id = node_id
-    ctx.target.map_id = map_id
+    ctx.target = TargetNode.create(node_id=node_id, map_id=map_id)
+    ctx.save()
 
     bot.send_message(chat_id, 'Setup is complete, send me messages and I will save them to RedForester')
 
@@ -199,5 +201,8 @@ def catch_all(message):
 
 
 if __name__ == '__main__':
+    init_db()
+    logger.info("Database initialized")
+
     logger.info('Polling started')
     bot.infinity_polling()
