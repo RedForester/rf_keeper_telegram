@@ -4,7 +4,7 @@ from rf_api_client import RfApiClient
 from rf_api_client.models.nodes_api_models import CreateNodePropertiesDto, CreateNodeDto, PositionType
 from rf_api_client.rf_api_client import UserAuth
 
-from user_context import UserContext
+from app.user_context import UserContext
 
 
 def execute(future):

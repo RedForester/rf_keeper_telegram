@@ -3,11 +3,11 @@ import os
 import telebot
 from telebot import apihelper
 
-from logger import logger
-from guards import Guards
-from rf_tasks import create_new_node, login_to_rf, execute
-from user_context import init_db, get_or_create_context, del_context, TargetNode
-from utils import link_to_node, parse_node_link
+from app.logger import logger
+from app.guards import Guards
+from app.rf_tasks import create_new_node, login_to_rf, execute
+from app.user_context import init_db, get_or_create_context, del_context, TargetNode
+from app.utils import link_to_node, parse_node_link
 
 
 logger.info('RedForester Keeper bot is started!')

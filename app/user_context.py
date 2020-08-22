@@ -2,7 +2,7 @@ import os
 
 from peewee import Model, CharField, BooleanField, ForeignKeyField, DatabaseProxy, PostgresqlDatabase
 
-from logger import logger
+from app.logger import logger
 
 db = DatabaseProxy()
 
