@@ -18,3 +18,9 @@ def parse_node_link(url: str) -> [Tuple[Optional[str], Optional[str]]]:
         return map_id, node_id
     except (AttributeError, IndexError, TypeError):
         return None, None
+
+
+def text_to_html(text: str) -> str:
+    lines = text.split('\n')
+    wrapped = map(lambda line: f"<p>{line}</p>", lines)
+    return ''.join(wrapped)

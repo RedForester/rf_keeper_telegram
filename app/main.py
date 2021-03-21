@@ -7,8 +7,7 @@ from app.logger import logger
 from app.guards import Guards
 from app.rf_tasks import create_new_node, login_to_rf, execute
 from app.user_context import init_db, get_or_create_context, del_context, TargetNode
-from app.utils import link_to_node, parse_node_link
-
+from app.utils import link_to_node, parse_node_link, text_to_html
 
 logger.info('RedForester Keeper bot is started!')
 
@@ -182,7 +181,7 @@ def catch_all(message):
         return bot.reply_to(message, 'You have to /setup first')
 
     try:
-        rf_node = execute(create_new_node(ctx, message.text))
+        rf_node = execute(create_new_node(ctx, text_to_html(message.text)))
         url = link_to_node(rf_node.map_id, rf_node.id)
 
         bot.reply_to(message, f'<a href="{url}">Saved</a>', parse_mode='HTML')
