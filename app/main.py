@@ -185,7 +185,7 @@ def catch_all(message):
         rf_node = execute(create_new_node(ctx, message.text))
         url = link_to_node(rf_node.map_id, rf_node.id)
 
-        bot.reply_to(message, f'<a href="{url}">Saved to RedForester</a>', parse_mode='HTML')
+        bot.reply_to(message, f'<a href="{url}">Saved</a>', parse_mode='HTML')
 
     except Exception as e:
         logger.exception(e)
