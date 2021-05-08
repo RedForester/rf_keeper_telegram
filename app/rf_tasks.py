@@ -22,7 +22,12 @@ async def login_to_rf(username: str, password: str) -> UserDto:
     async with RfApiClient(
         auth=UserAuth(username=username, password=password)
     ) as rf:
-        return await rf.users.get_current()
+        user = await rf.users.get_current()
+
+        if user.username == "nobody":
+            raise Exception("Unauthorized")
+
+        return user
 
 
 async def create_new_node(ctx: UserContext, title: str) -> NodeDto:
