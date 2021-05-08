@@ -4,7 +4,8 @@
 
 ## Todos
 
-- [ ] persistence to users context
+- [ ] better auth
+- [x] persistence to users context
 - [x] production deploy
 
 ## Development
