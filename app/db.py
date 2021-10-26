@@ -1,6 +1,6 @@
 import os
 
-from peewee import Model, CharField, BooleanField, ForeignKeyField, DatabaseProxy, PostgresqlDatabase
+from peewee import Model, CharField, BooleanField, ForeignKeyField, DatabaseProxy, PostgresqlDatabase, BigIntegerField
 
 from app.logger import logger
 
@@ -25,6 +25,19 @@ class UserContext(BaseModel):
     target = ForeignKeyField(TargetNode, null=True, default=None)
 
 
+class SavedNodeContext(BaseModel):
+    user_ctx = ForeignKeyField(UserContext, on_delete='CASCADE')
+
+    # user message id
+    message_id = BigIntegerField()
+
+    # created node id
+    node_id = CharField()
+
+    # bot reply id
+    reply_id = BigIntegerField()
+
+
 def init_db():
     db.initialize(PostgresqlDatabase(
         os.getenv('PGDATABASE'),
@@ -34,7 +47,7 @@ def init_db():
         port=5432
     ))
 
-    db.create_tables([TargetNode, UserContext], safe=True)
+    db.create_tables([TargetNode, UserContext, SavedNodeContext], safe=True)
 
 
 def get_or_create_context(message):
@@ -53,3 +66,11 @@ def del_context(message):
 
     if count:
         logger.info(f"Context is deleted for chat {chat_id}")
+
+
+def create_node_context(user_ctx, message, node_id, reply):
+    return SavedNodeContext.create(user_ctx=user_ctx, message_id=message.message_id, node_id=node_id, reply_id=reply.message_id)
+
+
+def get_node_context(user_ctx, message):
+    return SavedNodeContext.get_or_none(user_ctx=user_ctx, message_id=message.message_id)
