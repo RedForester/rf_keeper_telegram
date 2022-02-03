@@ -1,15 +1,18 @@
 import os
 from enum import Enum
+from typing import Optional
 
 import telebot
 from telebot import apihelper, types
+from pathvalidate import sanitize_filename
 
 from app.logger import logger
 from app.guards import Guards
-from app.rf_tasks import create_new_node, login_to_rf, execute, get_favorite_nodes, move_node, get_node
+from app.rf_tasks import create_new_node, login_to_rf, execute, get_favorite_nodes, move_node, get_node, FileInfoDto, \
+    upload_file_to_rf, UploadFileData
 from app.db import init_db, get_or_create_context, del_context, TargetNode, \
-    create_node_context, get_node_context
-from app.utils import link_to_node, parse_node_link, text_to_html, html_to_text
+    create_node_context, get_node_context, UserContext
+from app.utils import link_to_node, parse_node_link, text_to_html, html_to_text, guess_file_extension, link_to_file
 
 logger.info('RedForester Keeper bot is started!')
 
@@ -178,7 +181,26 @@ def create_move_to_keyboard(url):
     return kbd
 
 
-@bot.message_handler(func=lambda m: True)
+def upload_file(ctx: UserContext, file_id: str, file_name: str) -> UploadFileData:
+    file_info = bot.get_file(file_id)
+    file_content = bot.download_file(file_info.file_path)
+
+    return execute(upload_file_to_rf(ctx, file_content, file_name))
+
+
+def process_media(upload_info: UploadFileData, caption: Optional[str]):
+    return (
+        text_to_html(caption) if caption else '',
+        [FileInfoDto(
+            name=upload_info.file_name,
+            filepath=upload_info.file_id,
+            last_modified_timestamp=upload_info.timestamp,
+            last_modified_user=upload_info.user_id
+        )]
+    )
+
+
+@bot.message_handler(func=lambda m: True, content_types=['text', 'photo', 'audio', 'voice', 'video', 'video_note', 'document'])
 def catch_all(message):
     chat_id, ctx = get_or_create_context(message)
 
@@ -199,7 +221,48 @@ def catch_all(message):
         return bot.reply_to(message, 'You have to /setup first')
 
     try:
-        rf_node = execute(create_new_node(ctx, text_to_html(message.text)))
+        if message.text:
+            content = text_to_html(message.text)
+            files = None
+
+        elif message.photo:
+            photo = message.photo[-1]  # best quality photo
+
+            file_name = f'image.jpg'  # always jpeg
+            upload_info = upload_file(ctx, photo.file_id, file_name)
+            content, files = process_media(upload_info, message.caption)
+
+            url = link_to_file(upload_info.file_id, file_name)
+            content = f'<p><img src="{url}" height="{photo.height}" width="{photo.width}"></p>' + content
+
+        elif message.audio:
+            file_extension = guess_file_extension(message.audio.mime_type)
+            file_name = sanitize_filename(f'{message.audio.title or "Unknown"} - {message.audio.performer or "Unknown"}{file_extension}')
+            content, files = process_media(upload_file(ctx, message.audio.file_id, file_name), message.caption)
+
+        elif message.voice:
+            # always .oga?
+            file_extension = guess_file_extension(message.voice.mime_type)
+            file_name = sanitize_filename(f'{message.voice.title or "Unknown"} - {message.voice.performer or "Unknown"}{file_extension}')
+            content, files = process_media(upload_file(ctx, message.voice.file_id, file_name), message.caption)
+
+        elif message.video:
+            file_extension = guess_file_extension(message.video.mime_type)
+            file_name = f'video{file_extension}'
+            content, files = process_media(upload_file(ctx, message.video.file_id, file_name), message.caption)
+
+        elif message.video_note:
+            file_name = 'video_note.mp4'  # video_note has no mime type
+            content, files = process_media(upload_file(ctx, message.video_note.file_id, file_name), message.caption)
+
+        elif message.document:
+            file_name = sanitize_filename(message.document.file_name or 'unknown')
+            content, files = process_media(upload_file(ctx, message.document.file_id, file_name), message.caption)
+
+        else:
+            raise Exception('At least one of content handler not implemented')
+
+        rf_node = execute(create_new_node(ctx, content, files))
 
         reply = bot.reply_to(
             message,

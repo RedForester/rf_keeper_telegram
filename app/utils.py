@@ -1,3 +1,4 @@
+import mimetypes
 import re
 from typing import Tuple, Optional
 
@@ -6,6 +7,10 @@ from bs4 import BeautifulSoup
 
 def link_to_node(map_id: str, node_id: str) -> str:
     return f'https://beta.app.redforester.com/mindmap?mapid={map_id}&nodeid={node_id}'
+
+
+def link_to_file(file_id: str, file_name: str) -> str:
+    return f'https://beta.app.redforester.com/api/files/{file_id}?filename={file_name}'
 
 
 map_id_re = re.compile(r'mapid=([\w-]+)')
@@ -41,3 +46,13 @@ def html_to_text(html: str, one_line: bool = False) -> str:
         return lines[0]
 
     return "\n".join(lines)
+
+
+KNOWN_EXTENSIONS = {
+    'audio/mpeg': '.mp3',
+    'audio/mp4': '.m4a'
+}
+
+
+def guess_file_extension(mime_type: str):
+    return KNOWN_EXTENSIONS.get(mime_type) or mimetypes.guess_extension(mime_type)
