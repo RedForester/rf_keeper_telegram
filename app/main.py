@@ -200,8 +200,16 @@ def process_media(upload_info: UploadFileData, caption: Optional[str]):
     )
 
 
-@bot.message_handler(func=lambda m: True, content_types=['text', 'photo', 'audio', 'voice', 'video', 'video_note', 'document'])
-def catch_all(message):
+class UnsupportedContentException(Exception):
+    pass
+
+
+@bot.message_handler(
+    func=lambda m: True,
+    content_types=['text', 'photo', 'audio', 'voice', 'video', 'video_note', 'document',
+                   'location', 'venue', 'contact', 'sticker', 'animation']
+)
+def main_handler(message):
     chat_id, ctx = get_or_create_context(message)
 
     if Guards.is_cancel(message):
@@ -260,7 +268,7 @@ def catch_all(message):
             content, files = process_media(upload_file(ctx, message.document.file_id, file_name), message.caption)
 
         else:
-            raise Exception('At least one of content handler not implemented')
+            raise UnsupportedContentException()
 
         rf_node = execute(create_new_node(ctx, content, files))
 
@@ -272,6 +280,9 @@ def catch_all(message):
         )
 
         create_node_context(ctx, message, rf_node.id, reply)
+
+    except UnsupportedContentException:
+        bot.reply_to(message, 'Unsupported message type')
 
     except Exception as e:
         logger.exception(e)
