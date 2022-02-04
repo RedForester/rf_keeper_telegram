@@ -1,4 +1,4 @@
-from app.user_context import UserContext
+from app.db import UserContext
 
 
 class Guards:

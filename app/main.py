@@ -1,13 +1,15 @@
 import os
+from enum import Enum
 
 import telebot
-from telebot import apihelper
+from telebot import apihelper, types
 
 from app.logger import logger
 from app.guards import Guards
-from app.rf_tasks import create_new_node, login_to_rf, execute
-from app.user_context import init_db, get_or_create_context, del_context, TargetNode
-from app.utils import link_to_node, parse_node_link, text_to_html
+from app.rf_tasks import create_new_node, login_to_rf, execute, get_favorite_nodes, move_node, get_node
+from app.db import init_db, get_or_create_context, del_context, TargetNode, \
+    create_node_context, get_node_context
+from app.utils import link_to_node, parse_node_link, text_to_html, html_to_text
 
 logger.info('RedForester Keeper bot is started!')
 
@@ -160,6 +162,22 @@ def stop(message):
     bot.reply_to(message, 'Done')
 
 
+class MoveNodeCallbacks(Enum):
+    request = "move-node-request"
+    go_back = "move-node-go-back"
+    to = "move-node-to-"
+
+
+def create_move_to_keyboard(url):
+    kbd = types.InlineKeyboardMarkup()
+    kbd.add(
+        types.InlineKeyboardButton(text="Open in the browser", url=url),
+        types.InlineKeyboardButton(text="Move to ...", callback_data=MoveNodeCallbacks.request.value)
+    )
+
+    return kbd
+
+
 @bot.message_handler(func=lambda m: True)
 def catch_all(message):
     chat_id, ctx = get_or_create_context(message)
@@ -182,9 +200,15 @@ def catch_all(message):
 
     try:
         rf_node = execute(create_new_node(ctx, text_to_html(message.text)))
-        url = link_to_node(rf_node.map_id, rf_node.id)
 
-        bot.reply_to(message, f'<a href="{url}">Saved</a>', parse_mode='HTML')
+        reply = bot.reply_to(
+            message,
+            "Saved",  # todo add the path?
+            parse_mode='HTML',
+            reply_markup=create_move_to_keyboard(link_to_node(rf_node.map_id, rf_node.id))
+        )
+
+        create_node_context(ctx, message, rf_node.id, reply)
 
     except Exception as e:
         logger.exception(e)
@@ -193,9 +217,96 @@ def catch_all(message):
 
         bot.reply_to(
             message,
-            'Something went wrong. Please check if you have access to the destination node and try again\n'
-            f'<a href="{target_url}">Destination node</a>',
+            f'Something went wrong. '
+            f'Please check if you have access to the <a href="{target_url}">destination node</a> and try again',
             parse_mode='HTML'
+        )
+
+
+@bot.callback_query_handler(lambda query: query.data == MoveNodeCallbacks.go_back.value)
+def move_node_go_back(query):
+    chat_id, ctx = get_or_create_context(query.message.reply_to_message)
+
+    node_ctx = get_node_context(ctx, query.message.reply_to_message)
+
+    try:
+        node = execute(get_node(ctx, node_ctx.node_id))
+
+        bot.edit_message_reply_markup(
+            chat_id=chat_id,
+            message_id=query.message.message_id,
+            reply_markup=create_move_to_keyboard(link_to_node(node.map_id, node.id))
+        )
+
+        bot.answer_callback_query(callback_query_id=query.id)
+    except Exception as e:
+        # todo better error handling
+        logger.exception(e)
+        bot.answer_callback_query(
+            callback_query_id=query.id,
+            text="An error occurred. Check if the node still exist and can be accessed.",
+            show_alert=True
+        )
+
+
+@bot.callback_query_handler(lambda query: query.data == MoveNodeCallbacks.request.value)
+def move_node_request(query):
+    chat_id, ctx = get_or_create_context(query.message.reply_to_message)
+
+    # todo handle errors?
+    favorites = execute(get_favorite_nodes(ctx))
+
+    back_button = types.InlineKeyboardButton(
+        text="🔙 Go Back",
+        callback_data=MoveNodeCallbacks.go_back.value
+    )
+
+    favorite_buttons = [types.InlineKeyboardButton(
+        text=f"{fav.map.name} / {html_to_text(fav.title)}",
+        callback_data=f"{MoveNodeCallbacks.to.value}{fav.id}"
+    ) for fav in favorites if fav.title]
+
+    kbd = types.InlineKeyboardMarkup(row_width=1)
+
+    kbd.add(*favorite_buttons, back_button)
+
+    bot.edit_message_reply_markup(
+        chat_id=chat_id,
+        message_id=query.message.message_id,
+        reply_markup=kbd
+    )
+
+    bot.answer_callback_query(callback_query_id=query.id)
+
+
+@bot.callback_query_handler(lambda query: query.data.startswith(MoveNodeCallbacks.to.value))
+def move_node_to(query):
+    chat_id, ctx = get_or_create_context(query.message.reply_to_message)
+
+    node_ctx = get_node_context(ctx, query.message.reply_to_message)
+
+    selected_node_id = query.data.split(MoveNodeCallbacks.to.value)[1]
+
+    try:
+        root = execute(move_node(ctx, node_ctx.node_id, selected_node_id))
+
+        bot.edit_message_reply_markup(
+            chat_id=chat_id,
+            message_id=query.message.message_id,
+            reply_markup=create_move_to_keyboard(link_to_node(root.map_id, root.id))
+        )
+
+        bot.answer_callback_query(
+            callback_query_id=query.id,
+            text="The node has been moved"
+        )
+    except Exception as e:
+        logger.exception(e)
+
+        bot.answer_callback_query(
+            callback_query_id=query.id,
+            text="An error occurred. Check if you have access to the node.",
+            show_alert=True
         )
 
 

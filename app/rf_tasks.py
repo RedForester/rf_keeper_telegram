@@ -1,12 +1,14 @@
 import asyncio
-from typing import TypeVar, Coroutine, Any
+from typing import TypeVar, Coroutine, Any, List
 
 from rf_api_client import RfApiClient
-from rf_api_client.models.nodes_api_models import CreateNodePropertiesDto, CreateNodeDto, PositionType, NodeDto
+from rf_api_client.models.nodes_api_models import CreateNodePropertiesDto, CreateNodeDto, PositionType, NodeDto, \
+    NodeInsertOptions, NodeTreeDto
+from rf_api_client.models.tags_api_models import TaggedNodeDto
 from rf_api_client.models.users_api_models import UserDto
 from rf_api_client.rf_api_client import UserAuth
 
-from app.user_context import UserContext
+from app.db import UserContext
 
 
 T = TypeVar('T')
@@ -43,3 +45,33 @@ async def create_new_node(ctx: UserContext, title: str) -> NodeDto:
             position=(PositionType.P, "-1"),
             properties=props
         ))
+
+
+async def get_node(ctx: UserContext, node_id: str) -> NodeDto:
+    async with RfApiClient(
+            auth=UserAuth(username=ctx.username, password=ctx.password)
+    ) as rf:
+        return await rf.nodes.get_by_id(node_id)
+
+
+async def get_favorite_nodes(ctx: UserContext) -> List[TaggedNodeDto]:
+    async with RfApiClient(
+        auth=UserAuth(username=ctx.username, password=ctx.password)
+    ) as rf:
+        current = await rf.users.get_current()
+        favorite_tag = current.tags[0]
+
+        return await rf.tags.get_nodes(favorite_tag.id)
+
+
+async def move_node(ctx: UserContext, node_id: str, new_parent_id: str) -> NodeTreeDto:
+    async with RfApiClient(
+            auth=UserAuth(username=ctx.username, password=ctx.password)
+    ) as rf:
+        resp = await rf.nodes.insert_to(
+            node_id=node_id,
+            new_parent_id=new_parent_id,
+            options=NodeInsertOptions(move=True, for_branch=True)
+        )
+
+        return resp.root

@@ -5,6 +5,9 @@
 ## Todos
 
 - [ ] better auth
+- [ ] https://core.telegram.org/bots/api#setmycommands
+- [ ] favorites list pagination
+- [x] move to favorites
 - [x] persistence to users context
 - [x] production deploy
 
