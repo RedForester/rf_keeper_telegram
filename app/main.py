@@ -12,7 +12,8 @@ from app.rf_tasks import create_new_node, login_to_rf, execute, get_favorite_nod
     upload_file_to_rf, UploadFileData
 from app.db import init_db, get_or_create_context, del_context, TargetNode, \
     create_node_context, get_node_context, UserContext
-from app.utils import link_to_node, parse_node_link, text_to_html, html_to_text, guess_file_extension, link_to_file
+from app.utils import link_to_node, parse_node_link, tg_html_to_rf_html, html_to_text, guess_file_extension, \
+    link_to_file, CUSTOM_SUBS
 
 logger.info('RedForester Keeper bot is started!')
 
@@ -190,7 +191,7 @@ def upload_file(ctx: UserContext, file_id: str, file_name: str) -> UploadFileDat
 
 def process_media(upload_info: UploadFileData, caption: Optional[str]):
     return (
-        text_to_html(caption) if caption else '',
+        tg_html_to_rf_html(caption) if caption else '',
         [FileInfoDto(
             name=upload_info.file_name,
             filepath=upload_info.file_id,
@@ -228,9 +229,12 @@ def main_handler(message):
     if not Guards.is_setup_completed(ctx):
         return bot.reply_to(message, 'You have to /setup first')
 
+    # html formatting customization
+    message.custom_subs = CUSTOM_SUBS
+
     try:
         if message.text:
-            content = text_to_html(message.text)
+            content = tg_html_to_rf_html(message.html_text)
             files = None
 
         elif message.photo:
@@ -238,7 +242,7 @@ def main_handler(message):
 
             file_name = f'image.jpg'  # always jpeg
             upload_info = upload_file(ctx, photo.file_id, file_name)
-            content, files = process_media(upload_info, message.caption)
+            content, files = process_media(upload_info, message.html_caption)
 
             url = link_to_file(upload_info.file_id, file_name)
             content = f'<p><img src="{url}" height="{photo.height}" width="{photo.width}"></p>' + content
@@ -246,26 +250,26 @@ def main_handler(message):
         elif message.audio:
             file_extension = guess_file_extension(message.audio.mime_type)
             file_name = sanitize_filename(f'{message.audio.title or "Unknown"} - {message.audio.performer or "Unknown"}{file_extension}')
-            content, files = process_media(upload_file(ctx, message.audio.file_id, file_name), message.caption)
+            content, files = process_media(upload_file(ctx, message.audio.file_id, file_name), message.html_caption)
 
         elif message.voice:
             # always .oga?
             file_extension = guess_file_extension(message.voice.mime_type)
             file_name = sanitize_filename(f'{message.voice.title or "Unknown"} - {message.voice.performer or "Unknown"}{file_extension}')
-            content, files = process_media(upload_file(ctx, message.voice.file_id, file_name), message.caption)
+            content, files = process_media(upload_file(ctx, message.voice.file_id, file_name), message.html_caption)
 
         elif message.video:
             file_extension = guess_file_extension(message.video.mime_type)
             file_name = f'video{file_extension}'
-            content, files = process_media(upload_file(ctx, message.video.file_id, file_name), message.caption)
+            content, files = process_media(upload_file(ctx, message.video.file_id, file_name), message.html_caption)
 
         elif message.video_note:
             file_name = 'video_note.mp4'  # video_note has no mime type
-            content, files = process_media(upload_file(ctx, message.video_note.file_id, file_name), message.caption)
+            content, files = process_media(upload_file(ctx, message.video_note.file_id, file_name), message.html_caption)
 
         elif message.document:
             file_name = sanitize_filename(message.document.file_name or 'unknown')
-            content, files = process_media(upload_file(ctx, message.document.file_id, file_name), message.caption)
+            content, files = process_media(upload_file(ctx, message.document.file_id, file_name), message.html_caption)
 
         else:
             raise UnsupportedContentException()
