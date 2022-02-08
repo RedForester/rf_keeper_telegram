@@ -67,10 +67,37 @@ def _wrap_line(html: str) -> str:
 
     soup = BeautifulSoup(html, 'html.parser')
     # pre is already a block element, no need to wrap it
-    if soup.find("pre"):
+    if soup.find('pre'):
         return html
 
-    return f"<p>{html}</p>"
+    return f'<p>{html}</p>'
+
+
+ZWSP_STRING = re.compile('^\u200b+$')
+
+
+def _replace_zwsp_preview(html: str) -> str:
+    """
+    A common Telegram trick to add the image to the text message is to wrap ZWSP characters with the link to the image.
+    This function tries to find this type of link, extract it and append image tag to the bottom.
+    """
+    soup = BeautifulSoup(html, 'html.parser')
+
+    zwsp_preview = soup.find('a', string=ZWSP_STRING)
+    if not zwsp_preview:
+        return html
+
+    zwsp_preview.extract()
+
+    href = zwsp_preview.attrs.get('href', '')
+    file_type = guess_file_type(href)
+    if file_type and file_type.startswith('image/'):
+        preview = soup.new_tag('img', src=href)  # todo download image and set width and height attrs
+        p = soup.new_tag('p')
+        p.append(preview)
+        soup.append(p)
+
+    return str(soup)
 
 
 def tg_html_to_rf_html(html: str) -> str:
@@ -78,7 +105,11 @@ def tg_html_to_rf_html(html: str) -> str:
 
     wrapped_html = ''.join(map(_wrap_line, fixed_html.split('\n')))
 
-    return wrapped_html
+    without_zwsp_link_html = _replace_zwsp_preview(wrapped_html)
+
+    # todo create preview for links to pages with og meta tags
+
+    return without_zwsp_link_html
 
 
 # todo release as package
@@ -104,3 +135,7 @@ KNOWN_EXTENSIONS = {
 
 def guess_file_extension(mime_type: str):
     return KNOWN_EXTENSIONS.get(mime_type) or mimetypes.guess_extension(mime_type)
+
+
+def guess_file_type(filename: str) -> Optional[str]:
+    return mimetypes.guess_type(filename)[0]
