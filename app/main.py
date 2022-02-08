@@ -17,9 +17,10 @@ from app.utils import link_to_node, parse_node_link, tg_html_to_rf_html, html_to
 
 logger.info('RedForester Keeper bot is started!')
 
-bot = telebot.TeleBot(os.getenv('RF_KEEPER_TOKEN'))
 
 apihelper.ENABLE_MIDDLEWARE = True
+
+bot = telebot.TeleBot(os.getenv('RF_KEEPER_TOKEN'))
 
 
 @bot.middleware_handler(update_types=['message'])

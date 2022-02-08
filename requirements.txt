@@ -12,7 +12,7 @@ pathvalidate==2.5.0
 peewee==3.13.3
 psycopg2-binary==2.8.5
 pydantic==1.6
-pyTelegramBotAPI==3.7.2
+pyTelegramBotAPI==3.7.4
 requests==2.24.0
 rf-api-client==0.1.11
 six==1.15.0
