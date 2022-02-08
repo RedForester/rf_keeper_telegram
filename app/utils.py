@@ -32,6 +32,8 @@ CUSTOM_SUBS = {
     'bold': '<strong>{text}</strong>',
     'italic': '<em>{text}</em>',
     'text_link': '<a href="{url}" target="_blank">{text}</a>',
+    'mention': '<a href="{url}" target="_blank">{text}</a>',
+    # todo customize text_mention without breaking text_link
     'url': '<a href="{text}" target="_blank">{text}</a>',
     'spoiler': '{text}',
 }
