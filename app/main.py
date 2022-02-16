@@ -47,6 +47,8 @@ COMMANDS = (
     '/stop\n'
 )
 GH_LINK = 'https://github.com/RedForester/rf_keeper_telegram'
+CONTENT_TYPES = ['text', 'photo', 'audio', 'voice', 'video', 'video_note', 'document', 'location', 'venue',
+                 'contact', 'sticker', 'animation']
 
 
 class BotState(StatesGroup):
@@ -308,11 +310,7 @@ class UnsupportedContentException(Exception):
     pass
 
 
-@bot.message_handler(
-    func=lambda m: True,
-    content_types=['text', 'photo', 'audio', 'voice', 'video', 'video_note', 'document',
-                   'location', 'venue', 'contact', 'sticker', 'animation']
-)
+@bot.message_handler(func=lambda m: True, content_types=CONTENT_TYPES)
 async def main_handler(message):
     chat_id, ctx = get_or_create_context(message)
 
