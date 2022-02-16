@@ -30,7 +30,10 @@ class LoggerMiddleware(BaseMiddleware):
         pass
 
 
-bot = AsyncTeleBot(os.getenv('RF_KEEPER_TOKEN'))
+bot = AsyncTeleBot(
+    token=os.getenv('RF_KEEPER_TOKEN'),
+    parse_mode='HTML',
+)
 bot.add_custom_filter(asyncio_filters.StateFilter(bot))
 bot.setup_middleware(LoggerMiddleware())
 
@@ -60,7 +63,6 @@ async def help(message):
         '\n'
         f'{COMMANDS}\n'
         f'<a href="https://github.com/RedForester/rf_keeper_telegram">Bot source code</a>',
-        parse_mode='HTML'
     )
 
 
@@ -329,7 +331,6 @@ async def main_handler(message):
         reply = await bot.reply_to(
             message,
             "Saved",  # todo add the path?
-            parse_mode='HTML',
             reply_markup=create_move_to_keyboard(link_to_node(rf_node.map_id, rf_node.id))
         )
 
@@ -347,7 +348,6 @@ async def main_handler(message):
             message,
             f'Something went wrong. '
             f'Please check if you have access to the <a href="{target_url}">destination node</a> and try again',
-            parse_mode='HTML'
         )
 
 
