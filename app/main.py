@@ -202,6 +202,30 @@ def process_media(upload_info: UploadFileData, caption: Optional[str]):
     )
 
 
+def process_forwarded_message(message, content: str) -> str:
+    source_url = None
+
+    if message.forward_from:
+        user = message.forward_from
+        source_title = f'{user.last_name} {user.first_name}' if user.last_name else user.first_name
+        if user.username:
+            source_url = f'https://t.me/{user.username}'
+
+    elif message.forward_from_chat:
+        channel = message.forward_from_chat
+        source_title = channel.title
+        if channel.username:
+            source_url = f'https://t.me/{channel.username}'
+            if message.forward_from_message_id:
+                source_url += f'/{message.forward_from_message_id}'
+
+    else:
+        return content
+
+    source = f'<a href="{source_url}" target="_blank">{source_title}</a>' if source_url else source_title
+    return f'<p>Forwarded from {source}:</p>' + content
+
+
 class UnsupportedContentException(Exception):
     pass
 
@@ -274,6 +298,8 @@ def main_handler(message):
 
         else:
             raise UnsupportedContentException()
+
+        content = process_forwarded_message(message, content)
 
         rf_node = execute(create_new_node(ctx, content, files))
 
