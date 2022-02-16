@@ -46,6 +46,7 @@ COMMANDS = (
     '/setup\n'
     '/stop\n'
 )
+GH_LINK = 'https://github.com/RedForester/rf_keeper_telegram'
 
 
 class BotState(StatesGroup):
@@ -62,7 +63,7 @@ async def help(message):
         f'{ABOUT}.\n'
         '\n'
         f'{COMMANDS}\n'
-        f'<a href="https://github.com/RedForester/rf_keeper_telegram">Bot source code</a>',
+        f'<a href="{GH_LINK}">Bot source code</a>',
     )
 
 
