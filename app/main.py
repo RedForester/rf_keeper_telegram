@@ -183,14 +183,14 @@ def create_move_to_keyboard(url):
     return kbd
 
 
-def upload_file(ctx: UserContext, file_id: str, file_name: str) -> UploadFileData:
+def _upload_file(ctx: UserContext, file_id: str, file_name: str) -> UploadFileData:
     file_info = bot.get_file(file_id)
     file_content = bot.download_file(file_info.file_path)
 
     return execute(upload_file_to_rf(ctx, file_content, file_name))
 
 
-def process_media(upload_info: UploadFileData, caption: Optional[str]):
+def _process_media(upload_info: UploadFileData, caption: Optional[str]):
     return (
         tg_html_to_rf_html(caption) if caption else '',
         [FileInfoDto(
@@ -200,6 +200,56 @@ def process_media(upload_info: UploadFileData, caption: Optional[str]):
             last_modified_user=upload_info.user_id
         )]
     )
+
+
+def process_message(ctx: UserContext, message):
+    # html formatting customization
+    message.custom_subs = CUSTOM_SUBS
+
+    if message.text:
+        content = tg_html_to_rf_html(message.html_text)
+        files = None
+
+    elif message.photo:
+        photo = message.photo[-1]  # best quality photo
+
+        file_name = f'image.jpg'  # always jpeg
+        upload_info = _upload_file(ctx, photo.file_id, file_name)
+        content, files = _process_media(upload_info, message.html_caption)
+
+        url = link_to_file(upload_info.file_id, file_name)
+        content = f'<p><img src="{url}" height="{photo.height}" width="{photo.width}"></p>' + content
+
+    elif message.audio:
+        file_extension = guess_file_extension(message.audio.mime_type)
+        file_name = sanitize_filename(
+            f'{message.audio.title or "Unknown"} - {message.audio.performer or "Unknown"}{file_extension}')
+        content, files = _process_media(_upload_file(ctx, message.audio.file_id, file_name), message.html_caption)
+
+    elif message.voice:
+        # always .oga?
+        file_extension = guess_file_extension(message.voice.mime_type)
+        file_name = sanitize_filename(
+            f'{message.voice.title or "Unknown"} - {message.voice.performer or "Unknown"}{file_extension}')
+        content, files = _process_media(_upload_file(ctx, message.voice.file_id, file_name), message.html_caption)
+
+    elif message.video:
+        file_extension = guess_file_extension(message.video.mime_type)
+        file_name = f'video{file_extension}'
+        content, files = _process_media(_upload_file(ctx, message.video.file_id, file_name), message.html_caption)
+
+    elif message.video_note:
+        file_name = 'video_note.mp4'  # video_note has no mime type
+        content, files = _process_media(_upload_file(ctx, message.video_note.file_id, file_name), message.html_caption)
+
+    elif message.document:
+        file_name = sanitize_filename(message.document.file_name or 'unknown')
+        content, files = _process_media(_upload_file(ctx, message.document.file_id, file_name), message.html_caption)
+
+    else:
+        raise UnsupportedContentException()
+
+    return content, files
 
 
 def process_forwarded_message(message, content: str) -> str:
@@ -254,50 +304,8 @@ def main_handler(message):
     if not Guards.is_setup_completed(ctx):
         return bot.reply_to(message, 'You have to /setup first')
 
-    # html formatting customization
-    message.custom_subs = CUSTOM_SUBS
-
     try:
-        if message.text:
-            content = tg_html_to_rf_html(message.html_text)
-            files = None
-
-        elif message.photo:
-            photo = message.photo[-1]  # best quality photo
-
-            file_name = f'image.jpg'  # always jpeg
-            upload_info = upload_file(ctx, photo.file_id, file_name)
-            content, files = process_media(upload_info, message.html_caption)
-
-            url = link_to_file(upload_info.file_id, file_name)
-            content = f'<p><img src="{url}" height="{photo.height}" width="{photo.width}"></p>' + content
-
-        elif message.audio:
-            file_extension = guess_file_extension(message.audio.mime_type)
-            file_name = sanitize_filename(f'{message.audio.title or "Unknown"} - {message.audio.performer or "Unknown"}{file_extension}')
-            content, files = process_media(upload_file(ctx, message.audio.file_id, file_name), message.html_caption)
-
-        elif message.voice:
-            # always .oga?
-            file_extension = guess_file_extension(message.voice.mime_type)
-            file_name = sanitize_filename(f'{message.voice.title or "Unknown"} - {message.voice.performer or "Unknown"}{file_extension}')
-            content, files = process_media(upload_file(ctx, message.voice.file_id, file_name), message.html_caption)
-
-        elif message.video:
-            file_extension = guess_file_extension(message.video.mime_type)
-            file_name = f'video{file_extension}'
-            content, files = process_media(upload_file(ctx, message.video.file_id, file_name), message.html_caption)
-
-        elif message.video_note:
-            file_name = 'video_note.mp4'  # video_note has no mime type
-            content, files = process_media(upload_file(ctx, message.video_note.file_id, file_name), message.html_caption)
-
-        elif message.document:
-            file_name = sanitize_filename(message.document.file_name or 'unknown')
-            content, files = process_media(upload_file(ctx, message.document.file_id, file_name), message.html_caption)
-
-        else:
-            raise UnsupportedContentException()
+        content, files = process_message(ctx, message)
 
         content = process_forwarded_message(message, content)
 
