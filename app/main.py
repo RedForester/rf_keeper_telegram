@@ -1,31 +1,38 @@
 import os
 from enum import Enum
 from typing import Optional
+import asyncio
 
-import telebot
-from telebot import apihelper, types
+from telebot import types, asyncio_filters
+from telebot.async_telebot import AsyncTeleBot
+from telebot.asyncio_handler_backends import StatesGroup, State, BaseMiddleware
 from pathvalidate import sanitize_filename
 
 from app.logger import logger
-from app.guards import Guards
-from app.rf_tasks import create_new_node, login_to_rf, execute, get_favorite_nodes, move_node, get_node, FileInfoDto, \
+from app.rf_tasks import create_new_node, login_to_rf, get_favorite_nodes, move_node, get_node, FileInfoDto, \
     upload_file_to_rf, UploadFileData
 from app.db import init_db, get_or_create_context, del_context, TargetNode, \
     create_node_context, get_node_context, UserContext
 from app.utils import link_to_node, parse_node_link, tg_html_to_rf_html, html_to_text, guess_file_extension, \
     link_to_file, CUSTOM_SUBS
 
-logger.info('RedForester Keeper bot is started!')
+
+logger.info('RedForester Keeper bot started')
 
 
-apihelper.ENABLE_MIDDLEWARE = True
+class LoggerMiddleware(BaseMiddleware):
+    update_types = ['message']
 
-bot = telebot.TeleBot(os.getenv('RF_KEEPER_TOKEN'))
+    async def pre_process(self, message, data):
+        logger.info(f"Incoming message from chat: {message.chat.id}")
+
+    async def post_process(self, message, data, exception):
+        pass
 
 
-@bot.middleware_handler(update_types=['message'])
-def log_message(bot_instance, message):
-    logger.info(f"Incoming message from chat: {message.chat.id}")
+bot = AsyncTeleBot(os.getenv('RF_KEEPER_TOKEN'))
+bot.add_custom_filter(asyncio_filters.StateFilter(bot))
+bot.setup_middleware(LoggerMiddleware())
 
 
 GREET = 'Hi! I am RedForester Keeper bot'
@@ -38,9 +45,15 @@ COMMANDS = (
 )
 
 
+class BotState(StatesGroup):
+    get_username = State()
+    get_password = State()
+    get_destination_node = State()
+
+
 @bot.message_handler(commands=['help'])
-def help(message):
-    bot.reply_to(
+async def help(message):
+    await bot.reply_to(
         message,
         f'{GREET}.\n'
         f'{ABOUT}.\n'
@@ -52,47 +65,63 @@ def help(message):
 
 
 @bot.message_handler(commands=['start'])
-def start(message):
+async def start(message):
     chat_id, ctx = get_or_create_context(message)
 
-    if Guards.is_authorized(ctx):
-        return bot.reply_to(message, 'We\'ve already started. To logout from your account type /stop')
+    if ctx.is_authorized:
+        return await bot.reply_to(message, 'We\'ve already started. To logout from your account type /stop')
 
-    msg = bot.reply_to(
+    await bot.reply_to(
         message,
         f'{GREET}.\n'
         f'{ABOUT}.\n'
         '\n'
         'Let\'s start, type your username (email) from your RedForester account or /cancel:'
     )
-    bot.register_next_step_handler(msg, start_get_username)
+
+    await bot.set_state(message.from_user.id, BotState.get_username, message.chat.id)
 
 
-def start_get_username(message):
-    if Guards.is_cancel(message) or Guards.is_command(message):
-        return bot.reply_to(message, 'Action was canceled. Type /start to repeat')
+@bot.message_handler(commands=['stop'])
+async def stop(message):
+    del_context(message)
+    await bot.delete_state(message.from_user.id, message.chat.id)
+    await bot.reply_to(message, 'Done')
 
+
+@bot.message_handler(state='*', commands=['cancel'])
+async def cancel(message):
+    state = await bot.get_state(message.from_user.id, message.chat.id)
+
+    if not state:
+        await bot.reply_to(message, 'Nothing to cancel')
+    else:
+        await bot.reply_to(message, 'Action was canceled. Type /start to repeat')
+        await bot.delete_state(message.from_user.id, message.chat.id)
+
+
+@bot.message_handler(state=BotState.get_username)
+async def start_get_username(message):
     chat_id, ctx = get_or_create_context(message)
     ctx.username = message.text
     ctx.save()
 
-    msg = bot.send_message(
+    await bot.send_message(
         chat_id,
         'And then type your password or /cancel:'
     )
-    bot.register_next_step_handler(msg, start_get_password)
+
+    await bot.set_state(message.from_user.id, BotState.get_password, message.chat.id)
 
 
-def start_get_password(message):
-    if Guards.is_cancel(message) or Guards.is_command(message):
-        return bot.reply_to(message, 'Action was canceled. Type /start to repeat')
-
+@bot.message_handler(state=BotState.get_password)
+async def start_get_password(message):
     chat_id, ctx = get_or_create_context(message)
 
     password = message.text
 
     try:
-        rf_user = execute(login_to_rf(ctx.username, password))
+        rf_user = await login_to_rf(ctx.username, password)
 
         # fixme
         #  Yes, this is extremely bad to store unhashed password, but I have no choice for now.
@@ -102,69 +131,65 @@ def start_get_password(message):
         ctx.is_authorized = True
         ctx.save()
 
-        msg = bot.send_message(
+        await bot.send_message(
             chat_id,
             f'Hi, {rf_user.surname} {rf_user.name}!\n'
             f'Your login and password is correct!\n'
             f'\n'
             f'Now, paste URL to the destination node:\n'
         )
-        bot.register_next_step_handler(msg, setup_complete)
+
+        await bot.set_state(message.from_user.id, BotState.get_destination_node, message.chat.id)
 
     except Exception as e:
         logger.exception(e)
 
-        msg = bot.send_message(
+        await bot.send_message(
             chat_id,
             'Something went wrong. Please try again or type /cancel\n'
             'Type your username (email):'
         )
-        bot.register_next_step_handler(msg, start_get_username)
+
+        await bot.set_state(message.from_user.id, BotState.get_username, message.chat.id)
 
     finally:
-        bot.delete_message(chat_id, message.message_id)
+        await bot.delete_message(chat_id, message.message_id)
 
 
 @bot.message_handler(commands=['setup'])
-def setup_init(message):
+async def setup(message):
     chat_id, ctx = get_or_create_context(message)
 
-    if not Guards.is_authorized(ctx):
-        return bot.reply_to(message, 'You have to /start first')
+    if not ctx.is_authorized:
+        return await bot.reply_to(message, 'You have to /start first')
 
     target = link_to_node(ctx.target.map_id, ctx.target.node_id) if ctx.target else None
     status_text = f'Current destination node is {target}' if target else 'Destination node is not specified'
 
-    msg = bot.reply_to(
+    await bot.reply_to(
         message,
         f'{status_text}\n'
         '\n'
         'Please paste link to the new destination node or type /cancel:'
     )
-    bot.register_next_step_handler(msg, setup_complete)
+
+    await bot.set_state(message.from_user.id, BotState.get_destination_node, message.chat.id)
 
 
-def setup_complete(message):
-    if Guards.is_cancel(message) or Guards.is_command(message):
-        return bot.reply_to(message, 'Action was canceled. Type /setup to repeat')
-
+@bot.message_handler(state=BotState.get_destination_node)
+async def setup_get_destination_node(message):
     chat_id, ctx = get_or_create_context(message)
 
     map_id, node_id = parse_node_link(message.text)
 
     if not map_id or not node_id:
-        return bot.send_message(chat_id, 'Node link is incorrect, please try again with /setup command')
+        return await bot.send_message(chat_id, 'Node link is incorrect, please try again with /setup command')
 
     ctx.target = TargetNode.create(node_id=node_id, map_id=map_id)
     ctx.save()
 
-    bot.send_message(chat_id, 'Setup is complete, send me messages and I will save them to RedForester')
-
-
-@bot.message_handler(commands=['stop'])
-def stop(message):
-    del_context(message)
-    bot.reply_to(message, 'Done')
+    await bot.send_message(chat_id, 'Setup is complete, send me messages and I will save them to RedForester')
+    await bot.delete_state(message.from_user.id, message.chat.id)
 
 
 class MoveNodeCallbacks(Enum):
@@ -183,11 +208,11 @@ def create_move_to_keyboard(url):
     return kbd
 
 
-def _upload_file(ctx: UserContext, file_id: str, file_name: str) -> UploadFileData:
-    file_info = bot.get_file(file_id)
-    file_content = bot.download_file(file_info.file_path)
+async def _upload_file(ctx: UserContext, file_id: str, file_name: str) -> UploadFileData:
+    file_info = await bot.get_file(file_id)
+    file_content = await bot.download_file(file_info.file_path)
 
-    return execute(upload_file_to_rf(ctx, file_content, file_name))
+    return await upload_file_to_rf(ctx, file_content, file_name)
 
 
 def _process_media(upload_info: UploadFileData, caption: Optional[str]):
@@ -202,7 +227,7 @@ def _process_media(upload_info: UploadFileData, caption: Optional[str]):
     )
 
 
-def process_message(ctx: UserContext, message):
+async def process_message(ctx: UserContext, message):
     # html formatting customization
     message.custom_subs = CUSTOM_SUBS
 
@@ -214,7 +239,7 @@ def process_message(ctx: UserContext, message):
         photo = message.photo[-1]  # best quality photo
 
         file_name = f'image.jpg'  # always jpeg
-        upload_info = _upload_file(ctx, photo.file_id, file_name)
+        upload_info = await _upload_file(ctx, photo.file_id, file_name)
         content, files = _process_media(upload_info, message.html_caption)
 
         url = link_to_file(upload_info.file_id, file_name)
@@ -224,27 +249,27 @@ def process_message(ctx: UserContext, message):
         file_extension = guess_file_extension(message.audio.mime_type)
         file_name = sanitize_filename(
             f'{message.audio.title or "Unknown"} - {message.audio.performer or "Unknown"}{file_extension}')
-        content, files = _process_media(_upload_file(ctx, message.audio.file_id, file_name), message.html_caption)
+        content, files = _process_media(await _upload_file(ctx, message.audio.file_id, file_name), message.html_caption)
 
     elif message.voice:
         # always .oga?
         file_extension = guess_file_extension(message.voice.mime_type)
         file_name = sanitize_filename(
             f'{message.voice.title or "Unknown"} - {message.voice.performer or "Unknown"}{file_extension}')
-        content, files = _process_media(_upload_file(ctx, message.voice.file_id, file_name), message.html_caption)
+        content, files = _process_media(await _upload_file(ctx, message.voice.file_id, file_name), message.html_caption)
 
     elif message.video:
         file_extension = guess_file_extension(message.video.mime_type)
         file_name = f'video{file_extension}'
-        content, files = _process_media(_upload_file(ctx, message.video.file_id, file_name), message.html_caption)
+        content, files = _process_media(await _upload_file(ctx, message.video.file_id, file_name), message.html_caption)
 
     elif message.video_note:
         file_name = 'video_note.mp4'  # video_note has no mime type
-        content, files = _process_media(_upload_file(ctx, message.video_note.file_id, file_name), message.html_caption)
+        content, files = _process_media(await _upload_file(ctx, message.video_note.file_id, file_name), message.html_caption)
 
     elif message.document:
         file_name = sanitize_filename(message.document.file_name or 'unknown')
-        content, files = _process_media(_upload_file(ctx, message.document.file_id, file_name), message.html_caption)
+        content, files = _process_media(await _upload_file(ctx, message.document.file_id, file_name), message.html_caption)
 
     else:
         raise UnsupportedContentException()
@@ -285,33 +310,23 @@ class UnsupportedContentException(Exception):
     content_types=['text', 'photo', 'audio', 'voice', 'video', 'video_note', 'document',
                    'location', 'venue', 'contact', 'sticker', 'animation']
 )
-def main_handler(message):
+async def main_handler(message):
     chat_id, ctx = get_or_create_context(message)
 
-    if Guards.is_cancel(message):
-        return bot.reply_to(message, 'Nothing to cancel')
+    if not ctx.is_authorized:
+        return await bot.reply_to(message, 'You have to /start first')
 
-    if Guards.is_command(message):
-        return bot.reply_to(
-            message,
-            'Unsupported command\n'
-            f'{COMMANDS}'
-        )
-
-    if not Guards.is_authorized(ctx):
-        return bot.reply_to(message, 'You have to /start first')
-
-    if not Guards.is_setup_completed(ctx):
-        return bot.reply_to(message, 'You have to /setup first')
+    if not ctx.target:
+        return await bot.reply_to(message, 'You have to /setup first')
 
     try:
-        content, files = process_message(ctx, message)
+        content, files = await process_message(ctx, message)
 
         content = process_forwarded_message(message, content)
 
-        rf_node = execute(create_new_node(ctx, content, files))
+        rf_node = await create_new_node(ctx, content, files)
 
-        reply = bot.reply_to(
+        reply = await bot.reply_to(
             message,
             "Saved",  # todo add the path?
             parse_mode='HTML',
@@ -321,14 +336,14 @@ def main_handler(message):
         create_node_context(ctx, message, rf_node.id, reply)
 
     except UnsupportedContentException:
-        bot.reply_to(message, 'Unsupported message type')
+        await bot.reply_to(message, 'Unsupported message type')
 
     except Exception as e:
         logger.exception(e)
 
         target_url = link_to_node(ctx.target.map_id, ctx.target.node_id)
 
-        bot.reply_to(
+        await bot.reply_to(
             message,
             f'Something went wrong. '
             f'Please check if you have access to the <a href="{target_url}">destination node</a> and try again',
@@ -337,25 +352,25 @@ def main_handler(message):
 
 
 @bot.callback_query_handler(lambda query: query.data == MoveNodeCallbacks.go_back.value)
-def move_node_go_back(query):
+async def move_node_go_back(query):
     chat_id, ctx = get_or_create_context(query.message.reply_to_message)
 
     node_ctx = get_node_context(ctx, query.message.reply_to_message)
 
     try:
-        node = execute(get_node(ctx, node_ctx.node_id))
+        node = await get_node(ctx, node_ctx.node_id)
 
-        bot.edit_message_reply_markup(
+        await bot.edit_message_reply_markup(
             chat_id=chat_id,
             message_id=query.message.message_id,
             reply_markup=create_move_to_keyboard(link_to_node(node.map_id, node.id))
         )
 
-        bot.answer_callback_query(callback_query_id=query.id)
+        await bot.answer_callback_query(callback_query_id=query.id)
     except Exception as e:
         # todo better error handling
         logger.exception(e)
-        bot.answer_callback_query(
+        await bot.answer_callback_query(
             callback_query_id=query.id,
             text="An error occurred. Check if the node still exist and can be accessed.",
             show_alert=True
@@ -363,11 +378,11 @@ def move_node_go_back(query):
 
 
 @bot.callback_query_handler(lambda query: query.data == MoveNodeCallbacks.request.value)
-def move_node_request(query):
+async def move_node_request(query):
     chat_id, ctx = get_or_create_context(query.message.reply_to_message)
 
     # todo handle errors?
-    favorites = execute(get_favorite_nodes(ctx))
+    favorites = await get_favorite_nodes(ctx)
 
     back_button = types.InlineKeyboardButton(
         text="🔙 Go Back",
@@ -383,17 +398,17 @@ def move_node_request(query):
 
     kbd.add(*favorite_buttons, back_button)
 
-    bot.edit_message_reply_markup(
+    await bot.edit_message_reply_markup(
         chat_id=chat_id,
         message_id=query.message.message_id,
         reply_markup=kbd
     )
 
-    bot.answer_callback_query(callback_query_id=query.id)
+    await bot.answer_callback_query(callback_query_id=query.id)
 
 
 @bot.callback_query_handler(lambda query: query.data.startswith(MoveNodeCallbacks.to.value))
-def move_node_to(query):
+async def move_node_to(query):
     chat_id, ctx = get_or_create_context(query.message.reply_to_message)
 
     node_ctx = get_node_context(ctx, query.message.reply_to_message)
@@ -401,22 +416,22 @@ def move_node_to(query):
     selected_node_id = query.data.split(MoveNodeCallbacks.to.value)[1]
 
     try:
-        root = execute(move_node(ctx, node_ctx.node_id, selected_node_id))
+        root = await move_node(ctx, node_ctx.node_id, selected_node_id)
 
-        bot.edit_message_reply_markup(
+        await bot.edit_message_reply_markup(
             chat_id=chat_id,
             message_id=query.message.message_id,
             reply_markup=create_move_to_keyboard(link_to_node(root.map_id, root.id))
         )
 
-        bot.answer_callback_query(
+        await bot.answer_callback_query(
             callback_query_id=query.id,
             text="The node has been moved"
         )
     except Exception as e:
         logger.exception(e)
 
-        bot.answer_callback_query(
+        await bot.answer_callback_query(
             callback_query_id=query.id,
             text="An error occurred. Check if you have access to the node.",
             show_alert=True
@@ -425,7 +440,6 @@ def move_node_to(query):
 
 if __name__ == '__main__':
     init_db()
-    logger.info("Database initialized")
 
     logger.info('Polling is started')
-    bot.infinity_polling()
+    asyncio.run(bot.infinity_polling())

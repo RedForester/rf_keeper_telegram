@@ -49,6 +49,8 @@ def init_db():
 
     db.create_tables([TargetNode, UserContext, SavedNodeContext], safe=True)
 
+    logger.info("Database initialized")
+
 
 def get_or_create_context(message):
     chat_id = message.chat.id
