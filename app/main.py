@@ -96,7 +96,7 @@ async def cancel(message):
 @bot.message_handler(state=BotState.get_username)
 async def start_get_username(message):
     chat_id, ctx = get_or_create_context(message)
-    ctx.username = message.text
+    ctx.username = message.text.strip()
     ctx.save()
 
     await bot.send_message(
@@ -111,7 +111,7 @@ async def start_get_username(message):
 async def start_get_password(message):
     chat_id, ctx = get_or_create_context(message)
 
-    password = message.text
+    password = message.text.strip()
 
     try:
         rf_user = await login_to_rf(ctx.username, password)
