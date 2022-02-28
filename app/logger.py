@@ -5,4 +5,4 @@ logging.basicConfig(level=logging.WARNING, format='%(asctime)s %(name)s %(leveln
 logger = logging.getLogger('bot')
 logger.setLevel(logging.INFO)
 
-logger.info("Logging is enabled")
+logger.info('Logging is enabled')
