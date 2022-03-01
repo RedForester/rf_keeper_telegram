@@ -41,7 +41,8 @@ def init_db():
         user=os.getenv('PGUSER'),
         password=os.getenv('PGPASSWORD'),
         host=os.getenv('PGHOST'),
-        port=5432
+        port=5432,
+        autorollback=True,
     ))
 
     db.create_tables([UserContext, SavedNodeContext], safe=True)
