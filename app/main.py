@@ -30,14 +30,26 @@ bot.add_custom_filter(asyncio_filters.StateFilter(bot))
 bot.setup_middleware(LoggerMiddleware(logger))
 
 
-GREET = 'Hi! I am RedForester Keeper bot'
-ABOUT = 'I will save your messages to one of your favorite nodes'
-COMMANDS = (
-    'Available commands:\n'
-    '/start\n'
-    '/stop\n'
+HELP_MESSAGE = (
+    'Hi! I am RedForester Keeper bot.\n'
+    'I will save your messages to one of your favorite nodes.\n'
 )
+
+
 GH_LINK = 'https://github.com/RedForester/rf_keeper_telegram'
+
+
+COMMANDS = [
+    types.BotCommand('/start', 'Login to RedForester'),
+    types.BotCommand('/stop', 'Logout from RedForester'),
+    types.BotCommand('/cancel', 'Cancel the current action'),
+    types.BotCommand('/help', 'Show the help message'),
+]
+
+
+async def init_bot():
+    logger.info('Update bot info')
+    await bot.set_my_commands(COMMANDS)
 
 
 class BotState(StatesGroup):
@@ -49,11 +61,8 @@ class BotState(StatesGroup):
 async def help_(message):
     await bot.reply_to(
         message,
-        f'{GREET}.\n'
-        f'{ABOUT}.\n'
-        '\n'
-        f'{COMMANDS}\n'
-        f'<a href="{GH_LINK}">Bot source code</a>',
+        f'{HELP_MESSAGE}\n'
+        f'<a href="{GH_LINK}">Link to bot source code</a>'
     )
 
 
@@ -66,9 +75,7 @@ async def start(message):
 
     await bot.reply_to(
         message,
-        f'{GREET}.\n'
-        f'{ABOUT}.\n'
-        '\n'
+        f'{HELP_MESSAGE}\n'
         'Let\'s start, type your username (email) for your RedForester account or /cancel:'
     )
 
@@ -537,5 +544,7 @@ async def move_node_go_back(query):
 if __name__ == '__main__':
     init_db()
 
-    logger.info('Polling is started')
+    asyncio.run(init_bot())
+
+    logger.info('Starting the polling')
     asyncio.run(bot.infinity_polling())
