@@ -1,6 +1,5 @@
-import asyncio
 from datetime import datetime
-from typing import TypeVar, Coroutine, Any, List, Optional
+from typing import List, Optional
 
 from rf_api_client import RfApiClient
 from rf_api_client.models.files_api_models import UploadFileResponseDto
@@ -13,15 +12,6 @@ from rf_api_client.models.users_api_models import UserDto
 from rf_api_client.rf_api_client import UserAuth
 
 from app.db import UserContext
-
-
-T = TypeVar('T')
-
-
-def execute(future: Coroutine[Any, Any, T]) -> T:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    return loop.run_until_complete(future)
 
 
 class UploadFileData(UploadFileResponseDto):
