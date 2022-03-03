@@ -133,7 +133,7 @@ async def start_get_password(message):
 
         await bot.send_message(
             chat_id,
-            f'Hi, {rf_user.name} {rf_user.surname}, we are ready to go!\n\n'
+            f'Hi {rf_user.name} {rf_user.surname}, we are ready to go!\n\n'
             f'Send me messages and I will save them to RedForester'
         )
 
