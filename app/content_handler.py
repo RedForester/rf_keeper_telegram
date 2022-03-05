@@ -50,7 +50,7 @@ class ContentHandler:
 
         if message.forward_from:
             user = message.forward_from
-            source_title = f'{user.last_name} {user.first_name}' if user.last_name else user.first_name
+            source_title = f'{user.first_name} {user.last_name}' if user.last_name else user.first_name
             if user.username:
                 source_url = f'https://t.me/{user.username}'
 
