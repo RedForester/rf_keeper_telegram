@@ -54,6 +54,9 @@ class ContentHandler:
             if user.username:
                 source_url = f'https://t.me/{user.username}'
 
+        elif message.forward_sender_name:
+            source_title = message.forward_sender_name
+
         elif message.forward_from_chat:
             channel = message.forward_from_chat
             source_title = channel.title
