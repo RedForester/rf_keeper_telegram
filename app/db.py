@@ -41,7 +41,7 @@ def init_db():
         user=os.getenv('PGUSER'),
         password=os.getenv('PGPASSWORD'),
         host=os.getenv('PGHOST'),
-        port=5432,
+        port=os.getenv('PGPORT'),
         autorollback=True,
     ))
 

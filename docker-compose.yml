@@ -1,0 +1,23 @@
+name: rf-keeper-telegram
+
+volumes:
+  postgres_data: {}
+
+services:
+  main:
+    build:
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+
+  postgres:
+    image: postgres:17.2-alpine3.21
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:5433:5432"
