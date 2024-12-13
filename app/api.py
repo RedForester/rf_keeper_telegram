@@ -31,7 +31,8 @@ async def login_to_rf(username: str, password: str) -> UserDto:
 
 async def get_favorite_nodes(ctx: UserContext) -> List[TaggedNodeDto]:
     async with RfApiClient(
-            auth=UserAuth(username=ctx.username, password=ctx.password)
+            auth=UserAuth(username=ctx.username, password=ctx.password),
+            base_url=URL(os.getenv("RF_API_URL")) if os.getenv("RF_API_URL") is not None else DEFAULT_RF_URL
     ) as rf:
         current = await rf.users.get_current()
         favorite_tag = current.tags[0]
@@ -41,7 +42,8 @@ async def get_favorite_nodes(ctx: UserContext) -> List[TaggedNodeDto]:
 
 async def get_node(ctx: UserContext, node_id: str) -> NodeDto:
     async with RfApiClient(
-            auth=UserAuth(username=ctx.username, password=ctx.password)
+            auth=UserAuth(username=ctx.username, password=ctx.password),
+            base_url=URL(os.getenv("RF_API_URL")) if os.getenv("RF_API_URL") is not None else DEFAULT_RF_URL
     ) as rf:
         return await rf.nodes.get_by_id(node_id)
 
@@ -49,7 +51,8 @@ async def get_node(ctx: UserContext, node_id: str) -> NodeDto:
 async def create_node(ctx: UserContext, map_id: str, parent_id: str, title: str,
                       files: Optional[List[FileInfoDto]] = None) -> NodeDto:
     async with RfApiClient(
-            auth=UserAuth(username=ctx.username, password=ctx.password)
+            auth=UserAuth(username=ctx.username, password=ctx.password),
+            base_url=URL(os.getenv("RF_API_URL")) if os.getenv("RF_API_URL") is not None else DEFAULT_RF_URL
     ) as rf:
         props = CreateNodePropertiesDto.empty()
         props.global_.title = title
@@ -80,7 +83,8 @@ async def create_node(ctx: UserContext, map_id: str, parent_id: str, title: str,
 
 async def move_node(ctx: UserContext, node_id: str, new_parent_id: str) -> NodeTreeDto:
     async with RfApiClient(
-            auth=UserAuth(username=ctx.username, password=ctx.password)
+            auth=UserAuth(username=ctx.username, password=ctx.password),
+            base_url=URL(os.getenv("RF_API_URL")) if os.getenv("RF_API_URL") is not None else DEFAULT_RF_URL
     ) as rf:
         resp = await rf.nodes.insert_to(
             node_id=node_id,
@@ -99,7 +103,8 @@ class UploadFileData(UploadFileResponseDto):
 
 async def upload_file(ctx: UserContext, file: bytes, file_name: str) -> UploadFileData:
     async with RfApiClient(
-            auth=UserAuth(username=ctx.username, password=ctx.password)
+            auth=UserAuth(username=ctx.username, password=ctx.password),
+            base_url=URL(os.getenv("RF_API_URL")) if os.getenv("RF_API_URL") is not None else DEFAULT_RF_URL
     ) as rf:
         resp = await rf.files.upload_file_bytes(file)
         return UploadFileData(
