@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from typing import List, Optional
 
@@ -9,14 +10,16 @@ from rf_api_client.models.nodes_api_models import CreateNodePropertiesDto, Creat
     FilePropertyValue
 from rf_api_client.models.tags_api_models import TaggedNodeDto
 from rf_api_client.models.users_api_models import UserDto
-from rf_api_client.rf_api_client import UserAuth
+from rf_api_client.rf_api_client import UserAuth, DEFAULT_RF_URL
+from yarl import URL
 
 from app.db import UserContext
 
 
 async def login_to_rf(username: str, password: str) -> UserDto:
     async with RfApiClient(
-        auth=UserAuth(username=username, password=password)
+            auth=UserAuth(username=username, password=password),
+            base_url=URL(os.getenv("RF_API_URL")) if os.getenv("RF_API_URL") is not None else DEFAULT_RF_URL
     ) as rf:
         user = await rf.users.get_current()
 
@@ -28,7 +31,7 @@ async def login_to_rf(username: str, password: str) -> UserDto:
 
 async def get_favorite_nodes(ctx: UserContext) -> List[TaggedNodeDto]:
     async with RfApiClient(
-        auth=UserAuth(username=ctx.username, password=ctx.password)
+            auth=UserAuth(username=ctx.username, password=ctx.password)
     ) as rf:
         current = await rf.users.get_current()
         favorite_tag = current.tags[0]
@@ -43,9 +46,10 @@ async def get_node(ctx: UserContext, node_id: str) -> NodeDto:
         return await rf.nodes.get_by_id(node_id)
 
 
-async def create_node(ctx: UserContext, map_id: str, parent_id: str, title: str, files: Optional[List[FileInfoDto]] = None) -> NodeDto:
+async def create_node(ctx: UserContext, map_id: str, parent_id: str, title: str,
+                      files: Optional[List[FileInfoDto]] = None) -> NodeDto:
     async with RfApiClient(
-        auth=UserAuth(username=ctx.username, password=ctx.password)
+            auth=UserAuth(username=ctx.username, password=ctx.password)
     ) as rf:
         props = CreateNodePropertiesDto.empty()
         props.global_.title = title
